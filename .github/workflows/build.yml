@@ -38,21 +38,21 @@ jobs:
         
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --name dist/ShiftCalendarGenerator-v1.0-${{ matrix.os }} src/employee-shift-calendar-generator.py
+        pyinstaller --onefile --name ShiftCalendarGenerator-v1.0-${{ matrix.os }} src/employee-shift-calendar-generator.py
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ShiftCalendarGenerator-${{ matrix.os }}
         path: |
-          dist/ShiftCalendarGenerator-${{ matrix.os }}*
+          dist/ShiftCalendarGenerator-v1.0-${{ matrix.os }}*
 
     - name: Create Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/ShiftCalendarGenerator-${{ matrix.os }}*
+          dist/ShiftCalendarGenerator-v1.0-${{ matrix.os }}*
         tag_name: v1.0.${{ github.run_number }}
         name: Release v1.0.${{ github.run_number }}
         draft: false
