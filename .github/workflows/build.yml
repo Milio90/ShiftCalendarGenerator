@@ -17,7 +17,7 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
         
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -29,10 +29,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install python-docx icalendar
+   
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk
         
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --name ShiftCalendarGenerator-${{ matrix.os }} employee-shift-calendar-generator.py
+        pyinstaller --onefile --name ShiftCalendarGenerator-v1.0-${{ matrix.os }} employee-shift-calendar-generator.py
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
