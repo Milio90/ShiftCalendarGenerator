@@ -38,7 +38,7 @@ jobs:
         
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --name ShiftCalendarGenerator-v1.0-${{ matrix.os }} src/employee-shift-calendar-generator.py
+        pyinstaller --onefile --name dist/ShiftCalendarGenerator-v1.0-${{ matrix.os }} src/employee-shift-calendar-generator.py
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
