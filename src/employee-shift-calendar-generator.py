@@ -102,8 +102,8 @@ def browse_file():
     )
     return file_path
 
-def read_docx_table(file_path):
-    """Read the table content from a DOCX file, converting from DOC if necessary."""
+def read_docx_tables(file_path):
+    """Read all tables content from a DOCX file."""
     try:
         # Check if file is .doc and convert if needed
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -112,21 +112,24 @@ def read_docx_table(file_path):
             file_path = convert_doc_to_docx(file_path)
         
         doc = docx.Document(file_path)
-        # Assuming the first table contains our data
         if not doc.tables:
             print("No tables found in the document.")
             return []
         
-        table = doc.tables[0]
-        rows = []
+        tables_data = []
         
-        for row in table.rows:
-            row_data = [cell.text.strip() for cell in row.cells]
-            # Skip empty rows
-            if any(row_data):
-                rows.append(row_data)
+        for table_index, table in enumerate(doc.tables):
+            rows = []
+            for row in table.rows:
+                row_data = [cell.text.strip() for cell in row.cells]
+                # Skip empty rows
+                if any(row_data):
+                    rows.append(row_data)
+            
+            tables_data.append(rows)
+            print(f"Table {table_index+1}: Found {len(rows)} rows with data")
         
-        return rows
+        return tables_data
     except Exception as e:
         print(f"Error reading document: {e}")
         if "Could not convert" in str(e):
@@ -135,8 +138,8 @@ def read_docx_table(file_path):
         messagebox.showerror("Error", f"Could not process the document: {e}")
         return []
 
-def parse_shifts(rows, month, year):
-    """Parse the shift data from table rows."""
+def parse_first_table(rows, month, year):
+    """Parse the first table format (Regular and On-Call shifts)."""
     shifts = []
     
     for row in rows:
@@ -175,7 +178,69 @@ def parse_shifts(rows, month, year):
                     'shift_type': shift_type
                 })
         except Exception as e:
-            print(f"Error parsing row {row}: {e}")
+            print(f"Error parsing row in first table {row}: {e}")
+            continue
+    
+    return shifts
+
+def parse_second_table(rows, month, year):
+    """Parse the second table format (Μεγάλη, Μικρή, ΤΕΠ shifts)."""
+    shifts = []
+    
+    for row in rows:
+        if len(row) < 6:  # Ensure row has enough columns for second table format
+            continue
+        
+        try:
+            # Extract day, month, day_of_week, and employees from different shifts
+            day = row[0].strip()
+            day_of_week = row[2].strip()
+            megali_shift = row[3].strip()
+            mikri_shift = row[4].strip()
+            tep_shift = row[5].strip()
+            
+            # Skip header rows or rows without day number
+            if not day.isdigit():
+                continue
+            
+            day = int(day)
+            shift_date = date(year, month, day)
+            
+            # Process Μεγάλη shift (24h)
+            if megali_shift:
+                employee_name = megali_shift.replace(">", "").strip()
+                if employee_name:
+                    shifts.append({
+                        'employee': employee_name,
+                        'date': shift_date,
+                        'day_of_week': day_of_week,
+                        'shift_type': "Μεγάλη Shift (24h)"
+                    })
+            
+            # Process Μικρή shift (24h)
+            if mikri_shift:
+                employee_name = mikri_shift.replace(">", "").strip()
+                if employee_name:
+                    shifts.append({
+                        'employee': employee_name,
+                        'date': shift_date,
+                        'day_of_week': day_of_week,
+                        'shift_type': "Μικρή Shift (24h)"
+                    })
+            
+            # Process ΤΕΠ shift (12h)
+            if tep_shift:
+                employee_name = tep_shift.replace(">", "").strip()
+                if employee_name:
+                    shifts.append({
+                        'employee': employee_name,
+                        'date': shift_date,
+                        'day_of_week': day_of_week,
+                        'shift_type': "TEP Shift (12h)"
+                    })
+                
+        except Exception as e:
+            print(f"Error parsing row in second table {row}: {e}")
             continue
     
     return shifts
@@ -193,29 +258,45 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
     cal.add('version', '2.0')
     cal.add('calscale', 'GREGORIAN')
     
+    # Group shifts by date to combine multiple shifts on the same day
+    shifts_by_date = {}
+    
     for shift in employee_shifts:
+        date_key = shift['date'].isoformat()
+        if date_key not in shifts_by_date:
+            shifts_by_date[date_key] = []
+        shifts_by_date[date_key].append(shift)
+    
+    # Create events for each date, combining shift information
+    for date_key, date_shifts in shifts_by_date.items():
         event = Event()
         
-        # Set event properties for an all-day event
-        summary = f"{shift['shift_type']} - {shift['day_of_week']}"
+        # Combine all shift types for the summary
+        shift_types = [s['shift_type'] for s in date_shifts]
+        day_of_week = date_shifts[0]['day_of_week']  # They all have the same date
+        
+        # Format the summary to show all shift types
+        summary = f"{', '.join(shift_types)} - {day_of_week}"
         event.add('summary', summary)
         
         # All-day events need a DATE value type
-        event.add('dtstart', shift['date'])
+        shift_date = date_shifts[0]['date']
+        event.add('dtstart', shift_date)
         
         # For all-day events, the end date should be the next day
         # The end date is non-inclusive in the iCalendar spec
-        end_date = shift['date'] + timedelta(days=1)
+        end_date = shift_date + timedelta(days=1)
         event.add('dtend', end_date)
         
         event.add('dtstamp', datetime.now())
         
         # Generate a unique ID for the event
-        uid = f"{employee_name.replace(' ', '')}-{shift['date'].strftime('%Y%m%d')}@shifts.example.com"
+        uid = f"{employee_name.replace(' ', '')}-{shift_date.strftime('%Y%m%d')}@shifts.example.com"
         event.add('uid', uid)
         
-        # Add description
-        description = f"24-hour {shift['shift_type'].lower()} for {employee_name}"
+        # Add description with details about each shift
+        description_parts = [f"{s['shift_type']} on {s['day_of_week']}" for s in date_shifts]
+        description = "Combined shifts:\n" + "\n".join(description_parts)
         event.add('description', description)
         
         cal.add_component(event)
@@ -248,6 +329,11 @@ def extract_month_year_from_filename(filename):
         "ΣΕΠΤΕΜΒΡΙΟΣ": 9, "ΟΚΤΩΒΡΙΟΣ": 10, "ΝΟΕΜΒΡΙΟΣ": 11, "ΔΕΚΕΜΒΡΙΟΣ": 12
     }
     
+    # Also look for month name in the document content
+    month_from_content = None
+    if "ΜΑΡΤΙΟΣ" in filename:
+        month_from_content = 3
+    
     # Default to current month and year if extraction fails
     default_month = datetime.now().month
     default_year = datetime.now().year
@@ -262,14 +348,23 @@ def extract_month_year_from_filename(filename):
                     year = int(year_match.group())
                     return month_num, year
                 return month_num, default_year
+        
+        # If we found month in content, use that
+        if month_from_content:
+            year_match = re.search(r'20\d\d', filename)
+            if year_match:
+                year = int(year_match.group())
+                return month_from_content, year
+            return month_from_content, default_year
+            
     except:
         pass
     
     return default_month, default_year
 
 def main():
-    print("Employee Shift Calendar Generator")
-    print("=================================")
+    print("Enhanced Employee Shift Calendar Generator")
+    print("=========================================")
     
     # Get input file using file browser
     print("Please select the DOCX or DOC file containing shift schedules...")
@@ -300,22 +395,36 @@ def main():
     
     # Read and parse the document
     print(f"Reading file: {input_file}")
-    rows = read_docx_table(input_file)
+    tables = read_docx_tables(input_file)
     
-    if not rows:
-        print("No data found in the document.")
+    if not tables:
+        print("No tables found in the document.")
         return
     
-    print("Parsing shifts...")
-    shifts = parse_shifts(rows, month, year)
+    # Parse shifts from both tables
+    all_shifts = []
     
-    if not shifts:
-        print("No shifts found in the document!")
+    # Process first table (if exists)
+    if len(tables) >= 1:
+        print("Parsing first table (Regular/On-Call shifts)...")
+        first_table_shifts = parse_first_table(tables[0], month, year)
+        all_shifts.extend(first_table_shifts)
+        print(f"Found {len(first_table_shifts)} shifts in first table")
+    
+    # Process second table (if exists)
+    if len(tables) >= 2:
+        print("Parsing second table (Μεγάλη/Μικρή/ΤΕΠ shifts)...")
+        second_table_shifts = parse_second_table(tables[1], month, year)
+        all_shifts.extend(second_table_shifts)
+        print(f"Found {len(second_table_shifts)} shifts in second table")
+    
+    if not all_shifts:
+        print("No shifts found in any table!")
         return
     
-    # Get unique employee names
-    all_employees = sorted(set(shift['employee'] for shift in shifts))
-    print(f"Found {len(shifts)} shift assignments for {len(all_employees)} employees:")
+    # Get unique employee names across all shifts
+    all_employees = sorted(set(shift['employee'] for shift in all_shifts))
+    print(f"Found {len(all_shifts)} total shift assignments for {len(all_employees)} employees:")
     
     # Display employee list
     for i, emp in enumerate(all_employees, 1):
@@ -330,7 +439,7 @@ def main():
             for employee in all_employees:
                 output_file = save_calendar_file(employee)
                 if output_file:
-                    result = create_calendar_for_employee(shifts, employee, output_file)
+                    result = create_calendar_for_employee(all_shifts, employee, output_file)
                     if result:
                         print(f"Calendar for {employee} created successfully: {output_file}")
             break
@@ -372,8 +481,8 @@ def main():
             else:
                 break
         
-        # Create calendar
-        result = create_calendar_for_employee(shifts, employee_name, output_file)
+        # Create calendar - Fix: Use employee_name instead of employee
+        result = create_calendar_for_employee(all_shifts, employee_name, output_file)
         if result:
             print(f"Calendar created successfully: {output_file}")
             
