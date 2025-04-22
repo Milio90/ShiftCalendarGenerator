@@ -5,7 +5,92 @@ import re
 import sys
 import os
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
+import subprocess
+import tempfile
+import platform
+import shutil
+
+def convert_doc_to_docx(doc_path):
+    """Convert a .doc file to .docx format using available tools."""
+    file_name, file_ext = os.path.splitext(doc_path)
+    
+    # If already a docx file, return the original path
+    if file_ext.lower() == '.docx':
+        return doc_path
+    
+    # Create a temporary output file
+    temp_dir = tempfile.gettempdir()
+    base_name = os.path.basename(file_name)
+    output_path = os.path.join(temp_dir, f"{base_name}_converted.docx")
+    
+    conversion_successful = False
+    error_message = ""
+    
+    # Try LibreOffice first (cross-platform)
+    try:
+        # Determine LibreOffice executable based on platform
+        libreoffice_cmd = None
+        if platform.system() == "Windows":
+            # Check common install locations
+            possible_paths = [
+                r"C:\Program Files\LibreOffice\program\soffice.exe",
+                r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    libreoffice_cmd = path
+                    break
+        elif platform.system() == "Darwin":  # macOS
+            libreoffice_cmd = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        else:  # Linux and others
+            libreoffice_cmd = "libreoffice"
+        
+        if libreoffice_cmd:
+            process = subprocess.run([
+                libreoffice_cmd,
+                "--headless",
+                "--convert-to", "docx",
+                "--outdir", temp_dir,
+                doc_path
+            ], capture_output=True, text=True, timeout=30)
+            
+            # LibreOffice sometimes creates with original filename in the output dir
+            expected_file = os.path.join(temp_dir, f"{base_name}.docx")
+            if os.path.exists(expected_file):
+                # Rename to our expected output path
+                shutil.move(expected_file, output_path)
+                conversion_successful = True
+            else:
+                error_message = f"LibreOffice conversion output file not found: {expected_file}"
+    except Exception as e:
+        error_message = f"LibreOffice conversion failed: {str(e)}"
+    
+    # If LibreOffice failed, try Microsoft Word automation (Windows only)
+    if not conversion_successful and platform.system() == "Windows":
+        try:
+            import win32com.client
+            word = win32com.client.Dispatch("Word.Application")
+            word.Visible = False
+            
+            doc = word.Documents.Open(doc_path)
+            doc.SaveAs(output_path, FileFormat=16)  # 16 = docx format
+            doc.Close()
+            word.Quit()
+            
+            if os.path.exists(output_path):
+                conversion_successful = True
+            else:
+                error_message += "\nMicrosoft Word conversion output file not found."
+        except Exception as e:
+            error_message += f"\nMicrosoft Word conversion failed: {str(e)}"
+    
+    if conversion_successful:
+        print(f"Successfully converted {doc_path} to {output_path}")
+        return output_path
+    else:
+        print(f"Failed to convert .doc to .docx: {error_message}")
+        raise Exception(f"Could not convert {doc_path} to .docx format. Please convert it manually and try again.")
 
 def browse_file():
     """Open a file browser dialog and return the selected file path."""
@@ -13,13 +98,19 @@ def browse_file():
     root.withdraw()  # Hide the main window
     file_path = filedialog.askopenfilename(
         title="Select Shift Schedule Document",
-        filetypes=[("Word Documents", "*.docx"), ("All Files", "*.*")]
+        filetypes=[("Word Documents", "*.docx *.doc"), ("All Files", "*.*")]
     )
     return file_path
 
 def read_docx_table(file_path):
-    """Read the table content from a DOCX file."""
+    """Read the table content from a DOCX file, converting from DOC if necessary."""
     try:
+        # Check if file is .doc and convert if needed
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext == '.doc':
+            print("Converting .doc file to .docx format...")
+            file_path = convert_doc_to_docx(file_path)
+        
         doc = docx.Document(file_path)
         # Assuming the first table contains our data
         if not doc.tables:
@@ -38,6 +129,10 @@ def read_docx_table(file_path):
         return rows
     except Exception as e:
         print(f"Error reading document: {e}")
+        if "Could not convert" in str(e):
+            # This is our custom error from conversion function
+            print(str(e))
+        messagebox.showerror("Error", f"Could not process the document: {e}")
         return []
 
 def parse_shifts(rows, month, year):
@@ -177,7 +272,7 @@ def main():
     print("=================================")
     
     # Get input file using file browser
-    print("Please select the DOCX file containing shift schedules...")
+    print("Please select the DOCX or DOC file containing shift schedules...")
     input_file = browse_file()
     
     if not input_file:
