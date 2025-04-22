@@ -92,12 +92,12 @@ def convert_doc_to_docx(doc_path):
         print(f"Failed to convert .doc to .docx: {error_message}")
         raise Exception(f"Could not convert {doc_path} to .docx format. Please convert it manually and try again.")
 
-def browse_file():
+def browse_file(title="Select File"):
     """Open a file browser dialog and return the selected file path."""
     root = tk.Tk()
     root.withdraw()  # Hide the main window
     file_path = filedialog.askopenfilename(
-        title="Select Shift Schedule Document",
+        title=title,
         filetypes=[("Word Documents", "*.docx *.doc"), ("All Files", "*.*")]
     )
     return file_path
@@ -245,11 +245,58 @@ def parse_second_table(rows, month, year):
     
     return shifts
 
-def create_calendar_for_employee(shifts, employee_name, output_file):
+def parse_specialty_on_call_table(rows):
+    """Parse the specialty on-call table format with date (DD-MM-YYYY) in first column."""
+    shifts = []
+    
+    for row in rows:
+        if len(row) < 3:  # Ensure row has enough columns
+            continue
+        
+        try:
+            # Extract date, day_of_week, and employee
+            date_str = row[0].strip()
+            day_of_week = row[1].strip()
+            employee_name = row[2].strip()
+            
+            # Skip header rows or rows without proper date format
+            if not re.match(r"\d{1,2}-\d{1,2}-\d{4}", date_str):
+                continue
+            
+            # Parse date (DD-MM-YYYY)
+            day, month, year = map(int, date_str.split('-'))
+            shift_date = date(year, month, day)
+            
+            if employee_name:
+                shifts.append({
+                    'employee': employee_name,
+                    'date': shift_date,
+                    'day_of_week': day_of_week,
+                    'shift_type': "On-Call Specialty",  # Will be updated when adding to all_shifts
+                })
+                
+        except Exception as e:
+            print(f"Error parsing row in specialty on-call table {row}: {e}")
+            continue
+    
+    return shifts
+
+def create_calendar_for_employee(shifts, employee_name, output_file, cath_lab_shifts=None, ep_shifts=None):
     """Create an iCalendar file with all-day events for a specific employee."""
+    # Filter shifts for this specific employee
     employee_shifts = [s for s in shifts if s['employee'].lower() == employee_name.lower()]
     
-    if not employee_shifts:
+    # Also check if the employee has any cath lab or EP shifts
+    employee_cath_lab_shifts = []
+    employee_ep_shifts = []
+    
+    if cath_lab_shifts:
+        employee_cath_lab_shifts = [s for s in cath_lab_shifts if s['employee'].lower() == employee_name.lower()]
+        
+    if ep_shifts:
+        employee_ep_shifts = [s for s in ep_shifts if s['employee'].lower() == employee_name.lower()]
+    
+    if not employee_shifts and not employee_cath_lab_shifts and not employee_ep_shifts:
         print(f"No shifts found for employee: {employee_name}")
         return None
     
@@ -261,7 +308,22 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
     # Group shifts by date to combine multiple shifts on the same day
     shifts_by_date = {}
     
+    # Add regular shifts to the grouping
     for shift in employee_shifts:
+        date_key = shift['date'].isoformat()
+        if date_key not in shifts_by_date:
+            shifts_by_date[date_key] = []
+        shifts_by_date[date_key].append(shift)
+    
+    # Add cath lab shifts if they don't overlap with existing dates
+    for shift in employee_cath_lab_shifts:
+        date_key = shift['date'].isoformat()
+        if date_key not in shifts_by_date:
+            shifts_by_date[date_key] = []
+        shifts_by_date[date_key].append(shift)
+    
+    # Add EP shifts if they don't overlap with existing dates
+    for shift in employee_ep_shifts:
         date_key = shift['date'].isoformat()
         if date_key not in shifts_by_date:
             shifts_by_date[date_key] = []
@@ -274,13 +336,13 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
         # Combine all shift types for the summary
         shift_types = [s['shift_type'] for s in date_shifts]
         day_of_week = date_shifts[0]['day_of_week']  # They all have the same date
+        shift_date = date_shifts[0]['date']
         
         # Format the summary to show all shift types
         summary = f"{', '.join(shift_types)} - {day_of_week}"
         event.add('summary', summary)
         
         # All-day events need a DATE value type
-        shift_date = date_shifts[0]['date']
         event.add('dtstart', shift_date)
         
         # For all-day events, the end date should be the next day
@@ -294,10 +356,47 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
         uid = f"{employee_name.replace(' ', '')}-{shift_date.strftime('%Y%m%d')}@shifts.example.com"
         event.add('uid', uid)
         
-        # Add description with details about each shift
-        description_parts = [f"{s['shift_type']} on {s['day_of_week']}" for s in date_shifts]
-        description = "Combined shifts:\n" + "\n".join(description_parts)
-        event.add('description', description)
+        # Add description with details about all employees working that day
+        description_parts = [f"Your shifts: {', '.join(shift_types)}"]
+        
+        # Find all employees working on this date
+        coworkers_info = []
+        for s in shifts:
+            # If it's the same date but not the current employee
+            if s['date'] == shift_date and s['employee'].lower() != employee_name.lower():
+                coworkers_info.append(f"{s['employee']}: {s['shift_type']}")
+        
+        # Add coworkers section if any exist
+        if coworkers_info:
+            description_parts.append("\nCoworkers on this day:")
+            for info in sorted(coworkers_info):
+                description_parts.append(f"- {info}")
+        else:
+            description_parts.append("\nNo other employees scheduled on this day.")
+        
+        # Add Cath Lab on-call information if available
+        if cath_lab_shifts:
+            cath_lab_employee = None
+            for shift in cath_lab_shifts:
+                if shift['date'] == shift_date and shift['employee'].lower() != employee_name.lower():
+                    cath_lab_employee = shift['employee']
+                    break
+            
+            if cath_lab_employee:
+                description_parts.append(f"\nCath Lab On-Call: {cath_lab_employee}")
+        
+        # Add Electrophysiology on-call information if available
+        if ep_shifts:
+            ep_employee = None
+            for shift in ep_shifts:
+                if shift['date'] == shift_date and shift['employee'].lower() != employee_name.lower():
+                    ep_employee = shift['employee']
+                    break
+            
+            if ep_employee:
+                description_parts.append(f"\nElectrophysiology On-Call: {ep_employee}")
+        
+        event.add('description', "\n".join(description_parts))
         
         cal.add_component(event)
     
@@ -306,6 +405,7 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
         f.write(cal.to_ical())
     
     return output_file
+
 
 def save_calendar_file(employee_name):
     """Open a file dialog to choose where to save the calendar file."""
@@ -319,7 +419,6 @@ def save_calendar_file(employee_name):
         initialfile=default_filename
     )
     return file_path
-
 def extract_month_year_from_filename(filename):
     """Attempt to extract month and year from the filename."""
     # Example: "ΕΦΗΜΕΡΙΕΣ ΜΑΡΤΙΟΣ 2025.docx"
@@ -368,7 +467,7 @@ def main():
     
     # Get input file using file browser
     print("Please select the DOCX or DOC file containing shift schedules...")
-    input_file = browse_file()
+    input_file = browse_file("Select Main Shift Schedule Document")
     
     if not input_file:
         print("No file selected. Exiting.")
@@ -393,8 +492,52 @@ def main():
     if year_input and year_input.isdigit() and len(year_input) == 4:
         year = int(year_input)
     
-    # Read and parse the document
-    print(f"Reading file: {input_file}")
+    # Ask if user wants to include Cath Lab on-call shifts
+    cath_lab_shifts = None
+    include_cath_lab = input("Include Cath Lab on-call shifts? (y/n): ").strip().lower()
+    if include_cath_lab == 'y':
+        print("Please select the DOCX or DOC file containing Cath Lab on-call schedules...")
+        cath_lab_file = browse_file("Select Cath Lab On-Call Schedule")
+        if cath_lab_file and os.path.exists(cath_lab_file):
+            print(f"Selected Cath Lab file: {cath_lab_file}")
+            cath_lab_tables = read_docx_tables(cath_lab_file)
+            if cath_lab_tables:
+                cath_lab_shifts = []
+                for table in cath_lab_tables:
+                    cath_shifts = parse_specialty_on_call_table(table)
+                    for shift in cath_shifts:
+                        shift['shift_type'] = "Cath Lab On-Call"
+                    cath_lab_shifts.extend(cath_shifts)
+                print(f"Found {len(cath_lab_shifts)} Cath Lab on-call shifts")
+            else:
+                print("No tables found in the Cath Lab schedule document.")
+        else:
+            print("No Cath Lab file selected or file not found.")
+    
+    # Ask if user wants to include Electrophysiology on-call shifts
+    ep_shifts = None
+    include_ep = input("Include Electrophysiology on-call shifts? (y/n): ").strip().lower()
+    if include_ep == 'y':
+        print("Please select the DOCX or DOC file containing Electrophysiology on-call schedules...")
+        ep_file = browse_file("Select Electrophysiology On-Call Schedule")
+        if ep_file and os.path.exists(ep_file):
+            print(f"Selected Electrophysiology file: {ep_file}")
+            ep_tables = read_docx_tables(ep_file)
+            if ep_tables:
+                ep_shifts = []
+                for table in ep_tables:
+                    electro_shifts = parse_specialty_on_call_table(table)
+                    for shift in electro_shifts:
+                        shift['shift_type'] = "Electrophysiology On-Call"
+                    ep_shifts.extend(electro_shifts)
+                print(f"Found {len(ep_shifts)} Electrophysiology on-call shifts")
+            else:
+                print("No tables found in the Electrophysiology schedule document.")
+        else:
+            print("No Electrophysiology file selected or file not found.")
+    
+    # Read and parse the main document
+    print(f"Reading main file: {input_file}")
     tables = read_docx_tables(input_file)
     
     if not tables:
@@ -439,7 +582,8 @@ def main():
             for employee in all_employees:
                 output_file = save_calendar_file(employee)
                 if output_file:
-                    result = create_calendar_for_employee(all_shifts, employee, output_file)
+                    result = create_calendar_for_employee(all_shifts, employee, output_file, 
+                                                          cath_lab_shifts, ep_shifts)
                     if result:
                         print(f"Calendar for {employee} created successfully: {output_file}")
             break
@@ -481,8 +625,9 @@ def main():
             else:
                 break
         
-        # Create calendar - Fix: Use employee_name instead of employee
-        result = create_calendar_for_employee(all_shifts, employee_name, output_file)
+        # Create calendar with additional shifts
+        result = create_calendar_for_employee(all_shifts, employee_name, output_file, 
+                                              cath_lab_shifts, ep_shifts)
         if result:
             print(f"Calendar created successfully: {output_file}")
             
