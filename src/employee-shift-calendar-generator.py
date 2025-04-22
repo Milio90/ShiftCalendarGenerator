@@ -1,6 +1,6 @@
 import docx
 from icalendar import Calendar, Event
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import re
 import sys
 import os
@@ -69,11 +69,7 @@ def parse_shifts(rows, month, year):
                 employee_name = employee.replace("*", "").strip()
                 
                 # Create shift date
-                shift_date = datetime(year, month, day)
-                
-                # A 24-hour shift typically starts in the morning and ends the next morning
-                start_time = datetime(year, month, day, 8, 0, 0)  # 8:00 AM
-                end_time = start_time + timedelta(hours=24)  # 24 hours later
+                shift_date = date(year, month, day)
                 
                 shift_type = "On-Call Shift" if is_on_call else "Regular Shift"
                 
@@ -81,9 +77,7 @@ def parse_shifts(rows, month, year):
                     'employee': employee_name,
                     'date': shift_date,
                     'day_of_week': day_of_week,
-                    'shift_type': shift_type,
-                    'start_time': start_time,
-                    'end_time': end_time
+                    'shift_type': shift_type
                 })
         except Exception as e:
             print(f"Error parsing row {row}: {e}")
@@ -92,7 +86,7 @@ def parse_shifts(rows, month, year):
     return shifts
 
 def create_calendar_for_employee(shifts, employee_name, output_file):
-    """Create an iCalendar file with events for a specific employee."""
+    """Create an iCalendar file with all-day events for a specific employee."""
     employee_shifts = [s for s in shifts if s['employee'].lower() == employee_name.lower()]
     
     if not employee_shifts:
@@ -102,15 +96,23 @@ def create_calendar_for_employee(shifts, employee_name, output_file):
     cal = Calendar()
     cal.add('prodid', '-//Employee Shift Calendar//example.com//')
     cal.add('version', '2.0')
+    cal.add('calscale', 'GREGORIAN')
     
     for shift in employee_shifts:
         event = Event()
         
-        # Set event properties
+        # Set event properties for an all-day event
         summary = f"{shift['shift_type']} - {shift['day_of_week']}"
         event.add('summary', summary)
-        event.add('dtstart', shift['start_time'])
-        event.add('dtend', shift['end_time'])
+        
+        # All-day events need a DATE value type
+        event.add('dtstart', shift['date'])
+        
+        # For all-day events, the end date should be the next day
+        # The end date is non-inclusive in the iCalendar spec
+        end_date = shift['date'] + timedelta(days=1)
+        event.add('dtend', end_date)
+        
         event.add('dtstamp', datetime.now())
         
         # Generate a unique ID for the event
