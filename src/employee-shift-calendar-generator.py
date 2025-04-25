@@ -139,24 +139,67 @@ def read_docx_tables(file_path):
         return []
 
 def parse_first_table(rows, month, year):
-    """Parse the first table format (Regular and On-Call shifts)."""
+    """Parse the first table format (Regular and On-Call shifts) with month rollover detection."""
     shifts = []
+    current_month = month
+    current_year = year
+    last_day = 0  # Track the last day number we've seen
+    
+    # Dictionary of Greek month names to month numbers
+    greek_months = {
+        "ΙΑΝΟΥΑΡΙΟΥ": 1, "ΦΕΒΡΟΥΑΡΙΟΥ": 2, "ΜΑΡΤΙΟΥ": 3, "ΑΠΡΙΛΙΟΥ": 4,
+        "ΜΑΙΟΥ": 5, "ΙΟΥΝΙΟΥ": 6, "ΙΟΥΛΙΟΥ": 7, "ΑΥΓΟΥΣΤΟΥ": 8,
+        "ΣΕΠΤΕΜΒΡΙΟΥ": 9, "ΟΚΤΩΒΡΙΟΥ": 10, "ΝΟΕΜΒΡΙΟΥ": 11, "ΔΕΚΕΜΒΡΙΟΥ": 12,
+        "ΙΑΝΟΥΑΡΙΟΣ": 1, "ΦΕΒΡΟΥΑΡΙΟΣ": 2, "ΜΑΡΤΙΟΣ": 3, "ΑΠΡΙΛΙΟΣ": 4,
+        "ΜΑΙΟΣ": 5, "ΙΟΥΝΙΟΣ": 6, "ΙΟΥΛΙΟΣ": 7, "ΑΥΓΟΥΣΤΟΣ": 8,
+        "ΣΕΠΤΕΜΒΡΙΟΣ": 9, "ΟΚΤΩΒΡΙΟΣ": 10, "ΝΟΕΜΒΡΙΟΣ": 11, "ΔΕΚΕΜΒΡΙΟΣ": 12
+    }
     
     for row in rows:
         if len(row) < 4:  # Ensure row has enough columns
             continue
         
         try:
-            # Extract day, month, day_of_week, and employees
+            # Extract day, month_text, day_of_week, and employees
             day = row[0].strip()
+            month_text = row[1].strip() if len(row) > 1 else ""
             day_of_week = row[2].strip()
             employees_cell = row[3].strip()
             
             # Skip header rows or rows without day number
-            if not day.isdigit():
+            if not day or not day[0].isdigit():
                 continue
             
+            # Handle special formatting like "*01**" for May 1st
+            day = day.strip("*").strip()
+            if not day.isdigit():
+                continue
+                
             day = int(day)
+            
+            # Check for explicit month name in the month_text field
+            found_month = None
+            for greek_month, month_num in greek_months.items():
+                if greek_month in month_text:
+                    found_month = month_num
+                    break
+            
+            if found_month is not None:
+                # Use explicitly mentioned month
+                current_month = found_month
+                # If the new month is less than the original month, we've moved to next year
+                if current_month < month and month > 10 and current_month < 3:
+                    current_year += 1
+                print(f"Explicit month found: now processing {current_month}/{current_year}")
+            elif day < last_day and last_day > 20 and day < 10:
+                # Move to next month based on day number patterns
+                current_month += 1
+                if current_month > 12:
+                    current_month = 1
+                    current_year += 1
+                print(f"Month rollover detected: now processing {current_month}/{current_year}")
+            
+            last_day = day
             
             # Parse employee names (may contain two employees, one with asterisk)
             employees = employees_cell.split('\n')
@@ -166,8 +209,8 @@ def parse_first_table(rows, month, year):
                 is_on_call = "*" in employee
                 employee_name = employee.replace("*", "").strip()
                 
-                # Create shift date
-                shift_date = date(year, month, day)
+                # Create shift date using current_month and current_year
+                shift_date = date(current_year, current_month, day)
                 
                 shift_type = "On-Call Shift" if is_on_call else "Regular Shift"
                 
@@ -182,29 +225,74 @@ def parse_first_table(rows, month, year):
             continue
     
     return shifts
-
+    
 def parse_second_table(rows, month, year):
-    """Parse the second table format (Μεγάλη, Μικρή, ΤΕΠ shifts)."""
+    """Parse the second table format (Μεγάλη, Μικρή, ΤΕΠ shifts) with month rollover detection."""
     shifts = []
+    current_month = month
+    current_year = year
+    last_day = 0  # Track the last day number we've seen
+    
+    # Dictionary of Greek month names to month numbers
+    greek_months = {
+        "ΙΑΝΟΥΑΡΙΟΥ": 1, "ΦΕΒΡΟΥΑΡΙΟΥ": 2, "ΜΑΡΤΙΟΥ": 3, "ΑΠΡΙΛΙΟΥ": 4,
+        "ΜΑΙΟΥ": 5, "ΙΟΥΝΙΟΥ": 6, "ΙΟΥΛΙΟΥ": 7, "ΑΥΓΟΥΣΤΟΥ": 8,
+        "ΣΕΠΤΕΜΒΡΙΟΥ": 9, "ΟΚΤΩΒΡΙΟΥ": 10, "ΝΟΕΜΒΡΙΟΥ": 11, "ΔΕΚΕΜΒΡΙΟΥ": 12,
+        "ΙΑΝΟΥΑΡΙΟΣ": 1, "ΦΕΒΡΟΥΑΡΙΟΣ": 2, "ΜΑΡΤΙΟΣ": 3, "ΑΠΡΙΛΙΟΣ": 4,
+        "ΜΑΙΟΣ": 5, "ΙΟΥΝΙΟΣ": 6, "ΙΟΥΛΙΟΣ": 7, "ΑΥΓΟΥΣΤΟΣ": 8,
+        "ΣΕΠΤΕΜΒΡΙΟΣ": 9, "ΟΚΤΩΒΡΙΟΣ": 10, "ΝΟΕΜΒΡΙΟΣ": 11, "ΔΕΚΕΜΒΡΙΟΣ": 12
+    }
     
     for row in rows:
         if len(row) < 6:  # Ensure row has enough columns for second table format
             continue
         
         try:
-            # Extract day, month, day_of_week, and employees from different shifts
+            # Extract day, month_text, day_of_week, and employees from different shifts
             day = row[0].strip()
+            month_text = row[1].strip() if len(row) > 1 else ""
             day_of_week = row[2].strip()
             megali_shift = row[3].strip()
             mikri_shift = row[4].strip()
             tep_shift = row[5].strip()
             
             # Skip header rows or rows without day number
-            if not day.isdigit():
+            if not day or not day[0].isdigit():
                 continue
             
+            # Handle special formatting like "*01**" for May 1st
+            day = day.strip("*").strip()
+            if not day.isdigit():
+                continue
+                
             day = int(day)
-            shift_date = date(year, month, day)
+            
+            # Check for explicit month name in the month_text field
+            found_month = None
+            for greek_month, month_num in greek_months.items():
+                if greek_month in month_text:
+                    found_month = month_num
+                    break
+            
+            if found_month is not None:
+                # Use explicitly mentioned month
+                current_month = found_month
+                # If the new month is less than the original month, we've moved to next year
+                if current_month < month and month > 10 and current_month < 3:
+                    current_year += 1
+                print(f"Explicit month found: now processing {current_month}/{current_year}")
+            elif day < last_day and last_day > 20 and day < 10:
+                # Move to next month based on day number patterns
+                current_month += 1
+                if current_month > 12:
+                    current_month = 1
+                    current_year += 1
+                print(f"Month rollover detected: now processing {current_month}/{current_year}")
+            
+            last_day = day
+            
+            # Use current_month and current_year for the shift date
+            shift_date = date(current_year, current_month, day)
             
             # Process Μεγάλη shift (24h)
             if megali_shift:
@@ -244,9 +332,9 @@ def parse_second_table(rows, month, year):
             continue
     
     return shifts
-
+    
 def parse_specialty_on_call_table(rows):
-    """Parse the specialty on-call table format with date (DD-MM-YYYY) in first column."""
+    """Parse the specialty on-call table format with date (DD-MM-YYYY or DD/MM/YYYY) in first column."""
     shifts = []
     
     for row in rows:
@@ -260,11 +348,18 @@ def parse_specialty_on_call_table(rows):
             employee_name = row[2].strip()
             
             # Skip header rows or rows without proper date format
-            if not re.match(r"\d{1,2}-\d{1,2}-\d{4}", date_str):
+            # Updated regex to match both DD-MM-YYYY and DD/MM/YYYY formats
+            if not re.match(r"\d{1,2}[-/]\d{1,2}[-/]\d{4}", date_str):
                 continue
             
-            # Parse date (DD-MM-YYYY)
-            day, month, year = map(int, date_str.split('-'))
+            # Parse date (supports both DD-MM-YYYY and DD/MM/YYYY)
+            if '-' in date_str:
+                day, month, year = map(int, date_str.split('-'))
+            elif '/' in date_str:
+                day, month, year = map(int, date_str.split('/'))
+            else:
+                continue  # Skip if date format doesn't match either pattern
+                
             shift_date = date(year, month, day)
             
             if employee_name:
@@ -280,7 +375,7 @@ def parse_specialty_on_call_table(rows):
             continue
     
     return shifts
-
+    
 def create_calendar_for_employee(shifts, employee_name, output_file, cath_lab_shifts=None, ep_shifts=None):
     """Create an iCalendar file with all-day events for a specific employee."""
     # Filter shifts for this specific employee
@@ -428,11 +523,6 @@ def extract_month_year_from_filename(filename):
         "ΣΕΠΤΕΜΒΡΙΟΣ": 9, "ΟΚΤΩΒΡΙΟΣ": 10, "ΝΟΕΜΒΡΙΟΣ": 11, "ΔΕΚΕΜΒΡΙΟΣ": 12
     }
     
-    # Also look for month name in the document content
-    month_from_content = None
-    if "ΜΑΡΤΙΟΣ" in filename:
-        month_from_content = 3
-    
     # Default to current month and year if extraction fails
     default_month = datetime.now().month
     default_year = datetime.now().year
@@ -447,14 +537,6 @@ def extract_month_year_from_filename(filename):
                     year = int(year_match.group())
                     return month_num, year
                 return month_num, default_year
-        
-        # If we found month in content, use that
-        if month_from_content:
-            year_match = re.search(r'20\d\d', filename)
-            if year_match:
-                year = int(year_match.group())
-                return month_from_content, year
-            return month_from_content, default_year
             
     except:
         pass
