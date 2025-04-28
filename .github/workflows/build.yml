@@ -45,7 +45,7 @@ jobs:
     - name: Make the script files executable for macOS and Ubuntu
       if: matrix.os == 'macos-latest' || matrix.os == 'ubuntu-latest'
       run: |
-        chmod +x ShiftCalendarGenerator-v1.3-${{ matrix.os }}
+        chmod +x dist/ShiftCalendarGenerator-v1.3-${{ matrix.os }}
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
