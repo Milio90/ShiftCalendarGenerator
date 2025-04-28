@@ -41,6 +41,11 @@ jobs:
     - name: Build with PyInstaller
       run: |
         pyinstaller --onefile --name ShiftCalendarGenerator-v1.3-${{ matrix.os }} src/employee-shift-calendar-generator.py
+
+    - name: Make the script files executable for macOS and Ubuntu
+      if: matrix.os == 'macos-latest' || matrix.os == 'ubuntu-latest
+      run: |
+        chmod +x ShiftCalendarGenerator-v1.3-${{ matrix.os }}
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
