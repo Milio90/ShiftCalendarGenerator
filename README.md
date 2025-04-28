@@ -10,11 +10,7 @@ The python packages used for this project are:
 
 They should get installed automatically when you use the release executables.
 
-For Ubuntu (and macOS though I have no way to test it), you should first make it an executable with:
-```
-chmod +x ShiftCalendarGenerator-{version number}-{your os}-latest
-```
-and then run it with:
+For Ubuntu (and macOS though I have no way to test it), you can run it with:
 ```
 ./ShiftCalendarGenerator-{version number}-ubuntu-latest
 ```
