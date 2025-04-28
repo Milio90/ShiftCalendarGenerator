@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
         
     steps:
     - uses: actions/checkout@v4
@@ -40,23 +40,23 @@ jobs:
         
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --name ShiftCalendarGenerator-v1.2-${{ matrix.os }} src/employee-shift-calendar-generator.py
+        pyinstaller --onefile --name ShiftCalendarGenerator-v1.3-${{ matrix.os }} src/employee-shift-calendar-generator.py
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ShiftCalendarGenerator-${{ matrix.os }}
         path: |
-          dist/ShiftCalendarGenerator-v1.2-${{ matrix.os }}*
+          dist/ShiftCalendarGenerator-v1.3-${{ matrix.os }}*
 
     - name: Create Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/ShiftCalendarGenerator-v1.2-${{ matrix.os }}*
-        tag_name: v1.2.${{ github.run_number }}
-        name: Release v1.2.${{ github.run_number }}
+          dist/ShiftCalendarGenerator-v1.3-${{ matrix.os }}*
+        tag_name: v1.3.0
+        name: Release v1.3.0
         draft: false
         prerelease: false
       env:
