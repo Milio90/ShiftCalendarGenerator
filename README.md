@@ -2,17 +2,22 @@
 I created this program in order to create .ics files from the files of medical personnel shifts in my centre.
 # Requirements
 The doc to docx conversion works through Libreoffice (cross-platform) or Microsoft Office (Windows) so one of these should be installed.
+The program was made with Python 3.12.3
 The python packages used for this project are:
 - python-docx
 - icalendar
 - pyinstaller (for creating executables for each platform)
 - python3-tk (for Linux)
 
-They should get installed automatically when you use the release executables.
+They should not be needed to install in your system if you use the Release executables.
 
-For Ubuntu (and macOS though I have no way to test it), you can run it with:
+For Ubuntu (and macOS though I have no way to test it), you should first make it an executable with:
 ```
-./ShiftCalendarGenerator-{version number}-ubuntu-latest
+chmod +x ShiftCalendarGenerator-{version number}-{your os}-latest
+```
+and then run it with:
+```
+./ShiftCalendarGenerator-{version number}-{your os}-latest
 ```
 where {version number} is the version of the release you downloaded and {your os} is either:
 - ubuntu
