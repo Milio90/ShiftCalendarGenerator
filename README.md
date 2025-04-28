@@ -10,15 +10,17 @@ The python packages used for this project are:
 
 They should get installed automatically when you use the release executables.
 
-For Ubuntu, you should first make it an executable with:
+For Ubuntu (and macOS though I have no way to test it), you should first make it an executable with:
 ```
-chmod +x ShiftCalendarGenerator-{version number}-ubuntu-latest
+chmod +x ShiftCalendarGenerator-{version number}-{your os}-latest
 ```
 and then run it with:
 ```
 ./ShiftCalendarGenerator-{version number}-ubuntu-latest
 ```
-where {version number} is the version of the release you downloaded.
+where {version number} is the version of the release you downloaded and {your os} is either:
+- ubuntu
+- macos
 # How does it work
 The program expects a .doc or .docx file with two tables. The first table should have the following format:
 
