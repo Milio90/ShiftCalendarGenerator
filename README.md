@@ -11,17 +11,17 @@ The python packages used for this project are:
 
 They should not be needed to install in your system if you use the Release executables.
 
-For Ubuntu (and macOS though I have no way to test it), you should first make it an executable with:
+For Ubuntu users, you should first make it an executable with:
 ```
-chmod +x ShiftCalendarGenerator-{version number}-{your os}-latest
+chmod +x ShiftCalendarGenerator-{version number}-ubuntu-latest
 ```
 and then run it with:
 ```
-./ShiftCalendarGenerator-{version number}-{your os}-latest
+./ShiftCalendarGenerator-{version number}-ubuntu-latest
 ```
-where {version number} is the version of the release you downloaded and {your os} is either:
-- ubuntu
-- macos
+where {version number} is the version of the release you downloaded.
+
+For macOS users, there will be a security warning since the app is not signed. You will need to right-click it and select "Open".
 # How does it work
 The program expects a .doc or .docx file with two tables. The first table should have the following format:
 
