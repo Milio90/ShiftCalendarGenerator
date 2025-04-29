@@ -41,12 +41,12 @@ jobs:
     - name: Build with PyInstaller (Windows & Linux)
       if: matrix.os != 'macos-latest'
       run: |
-        pyinstaller --onefile --windowed --name ShiftCalendarGenerator-v1.3.2-${{ matrix.os }} src/employee-shift-calendar-generator.py
+        pyinstaller --onefile --windowed --icon icons/employee-shift-calendar-generator.ico --name ShiftCalendarGenerator-v1.3.2-${{ matrix.os }} src/employee-shift-calendar-generator.py
 
     - name: Build with PyInstaller (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        pyinstaller --windowed --name ShiftCalendarGenerator-v1.3.2 src/employee-shift-calendar-generator.py
+        pyinstaller --windowed --icon icons/employee-shift-calendar-generator.icns --name ShiftCalendarGenerator-v1.3.2 src/employee-shift-calendar-generator.py
         # Create a zip of the .app bundle for easier distribution
         cd dist
         zip -r ShiftCalendarGenerator-v1.3.2-${{ matrix.os }}.zip ShiftCalendarGenerator-v1.3.2.app
