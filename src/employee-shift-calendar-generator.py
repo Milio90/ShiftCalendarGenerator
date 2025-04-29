@@ -862,7 +862,6 @@ class ShiftCalendarApp:
 def main():
     # Create root window
     root = tk.Tk(className="ShiftCalendarGenerator")
-    root.wm_class("ShiftCalendarGenerator")
     # Set theme (if ttk styles available)
     try:
         style = ttk.Style()
