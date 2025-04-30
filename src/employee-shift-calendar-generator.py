@@ -333,11 +333,11 @@ class ShiftCalendarApp:
             
             if result:
                 success_count += 1
-                self.log(f"Calendar for {employee} created successfully")
+                self.log("Calendar created successfully for an employee")
             else:
-                self.log(f"Failed to create calendar for {employee}")
+                self.log("Failed to create calendar for an employee")
                 
-        self.log(f"Completed! Generated {success_count} of {len(employees)} calendars in {output_dir}")
+        self.log(f"Completed! Generated {success_count} calendars in the selected output directory")
         
         # Show completion message
         self.root.after(0, lambda: messagebox.showinfo(
