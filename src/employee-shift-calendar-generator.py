@@ -166,13 +166,14 @@ class ShiftCalendarApp:
             self.ep_file.set(file_path)
             self.log(f"Selected Electrophysiology file: {file_path}")
             
-    def log(self, message):
+    def log(self, message, sensitive=False):
         """Add message to the log area"""
+        sanitized_message = "[REDACTED]" if sensitive else message
         self.log_area.config(state=tk.NORMAL)
-        self.log_area.insert(tk.END, message + "\n")
+        self.log_area.insert(tk.END, sanitized_message + "\n")
         self.log_area.see(tk.END)
         self.log_area.config(state=tk.DISABLED)
-        print(message)  # Also print to console for debugging
+        print(sanitized_message)  # Also print to console for debugging
         
     def process_files(self):
         """Process the selected files and populate employee list"""
@@ -333,9 +334,9 @@ class ShiftCalendarApp:
             
             if result:
                 success_count += 1
-                self.log("Calendar created successfully for an employee")
+                self.log(f"Calendar created successfully for employee: [REDACTED]", sensitive=True)
             else:
-                self.log("Failed to create calendar for an employee")
+                self.log(f"Failed to create calendar for employee: [REDACTED]", sensitive=True)
                 
         self.log(f"Completed! Generated {success_count} calendars in the selected output directory")
         
@@ -746,7 +747,7 @@ class ShiftCalendarApp:
             employee_ep_shifts = [s for s in ep_shifts if s['employee'].lower() == employee_name.lower()]
         
         if not employee_shifts and not employee_cath_lab_shifts and not employee_ep_shifts:
-            self.log(f"No shifts found for employee: {employee_name}")
+            self.log("No shifts found for the specified employee", sensitive=True)
             return None
         
         cal = Calendar()
