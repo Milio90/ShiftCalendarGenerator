@@ -13,7 +13,7 @@ They should not be needed to install in your system if you use the Release execu
 
 For Ubuntu users, you should first make it an executable with:
 ```
-chmod +x ShiftCalendarGenerator-{version number}-ubuntu-latest
+chmod 755 ShiftCalendarGenerator-{version number}-ubuntu-latest
 ```
 and then run it with:
 ```
